@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Lufga";
+  src: url("./assets/font/Lufga-Regular.woff2") format("woff2"),
+    url("./assets/font/Lufga-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Lufga";
+  src: url("./assets/font/Lufga-Bold.woff2") format("woff2"),
+    url("./assets/font/Lufga-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+}
+
+body {
+  font-family: "Lufga", sans-serif;
+}
