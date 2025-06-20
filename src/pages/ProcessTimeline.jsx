@@ -18,13 +18,12 @@ const stepDescriptions = [
 // SVG paths
 const desktopPath =
   "M125.5 8.5C122.3 10.9 117 17.8333 106.5 31C-81.0004 270 32.2191 468.258 184.765 473.5C322.662 478.238 375.766 331 567.765 327.5C759.765 324 898.765 451 1069.76 453.5";
-
-// Original wavy mobile path
 const mobilePath = "M150 0 C50 100, 50 200, 150 300";
 
 export default function ProcessTimeline() {
   const containerRef = useRef(null);
   const pathRef = useRef(null);
+
   const [pathLength, setPathLength] = useState(0);
   const [rocketPosition, setRocketPosition] = useState({
     x: 0,
@@ -33,6 +32,7 @@ export default function ProcessTimeline() {
   });
   const [currentStepIndex, setCurrentStepIndex] = useState(-1);
   const [isMobile, setIsMobile] = useState(false);
+  const [dashSegments, setDashSegments] = useState([]);
 
   const viewBoxWidth = isMobile ? 300 : 1200;
   const viewBoxHeight = isMobile ? 300 : 500;
@@ -43,9 +43,7 @@ export default function ProcessTimeline() {
   });
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -53,55 +51,80 @@ export default function ProcessTimeline() {
 
   const activePath = isMobile ? mobilePath : desktopPath;
 
-  // Update pathLength on mount
   useEffect(() => {
     if (pathRef.current) {
-      const length = pathRef.current.getTotalLength();
-      setPathLength(length);
+      requestAnimationFrame(() => {
+        const length = pathRef.current.getTotalLength();
+        setPathLength(length);
 
-      // Initialize rocket position and angle
-      const startPoint = pathRef.current.getPointAtLength(0);
-      const lookAheadPoint = pathRef.current.getPointAtLength(10);
-      const dx = lookAheadPoint.x - startPoint.x;
-      const dy = lookAheadPoint.y - startPoint.y;
-      const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+        const startPoint = pathRef.current.getPointAtLength(0);
+        const lookAhead = pathRef.current.getPointAtLength(10);
+        const dx = lookAhead.x - startPoint.x;
+        const dy = lookAhead.y - startPoint.y;
+        const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
 
-      setRocketPosition({
-        x: (startPoint.x / viewBoxWidth) * 100,
-        y: (startPoint.y / viewBoxHeight) * 100,
-        angle,
+        setRocketPosition({
+          x: (startPoint.x / viewBoxWidth) * 100,
+          y: (startPoint.y / viewBoxHeight) * 100,
+          angle,
+        });
       });
     }
   }, [isMobile, viewBoxWidth, viewBoxHeight]);
 
   useEffect(() => {
     return scrollYProgress.onChange((progress) => {
-      if (pathRef.current && pathLength) {
-        const lengthAtProgress = progress * pathLength;
-        const currentPoint = pathRef.current.getPointAtLength(lengthAtProgress);
-        const lookAheadPoint = pathRef.current.getPointAtLength(
-          Math.min(lengthAtProgress + 10, pathLength)
+      if (!pathRef.current || !pathLength) return;
+
+      const visibleLength = progress * pathLength;
+      const segmentLength = 20;
+      const gap = 10;
+      let segments = [];
+
+      for (let i = 0; i < visibleLength; i += segmentLength + gap) {
+        const start = pathRef.current.getPointAtLength(i);
+        const end = pathRef.current.getPointAtLength(
+          Math.min(i + segmentLength, pathLength)
         );
-        const dx = lookAheadPoint.x - currentPoint.x;
-        const dy = lookAheadPoint.y - currentPoint.y;
-        const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
 
-        setRocketPosition({
-          x: (currentPoint.x / viewBoxWidth) * 100,
-          y: (currentPoint.y / viewBoxHeight) * 100,
-          angle,
-        });
+        segments.push(
+          <line
+            key={i}
+            x1={start.x}
+            y1={start.y}
+            x2={end.x}
+            y2={end.y}
+            stroke="#00a2ff"
+            strokeWidth="5"
+            strokeLinecap="round"
+          />
+        );
+      }
 
-        // Update current step based on scroll progress
-        if (progress > 0.85) {
-          setCurrentStepIndex(2);
-        } else if (progress > 0.55) {
-          setCurrentStepIndex(1);
-        } else if (progress > 0.25) {
-          setCurrentStepIndex(0);
-        } else {
-          setCurrentStepIndex(-1);
-        }
+      setDashSegments(segments);
+
+      const current = pathRef.current.getPointAtLength(visibleLength);
+      const lookAhead = pathRef.current.getPointAtLength(
+        Math.min(visibleLength + 10, pathLength)
+      );
+      const dx = lookAhead.x - current.x;
+      const dy = lookAhead.y - current.y;
+      const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+
+      setRocketPosition({
+        x: (current.x / viewBoxWidth) * 100,
+        y: (current.y / viewBoxHeight) * 100,
+        angle,
+      });
+
+      if (progress > 0.85) {
+        setCurrentStepIndex(2);
+      } else if (progress > 0.55) {
+        setCurrentStepIndex(1);
+      } else if (progress > 0.25) {
+        setCurrentStepIndex(0);
+      } else {
+        setCurrentStepIndex(-1);
       }
     });
   }, [scrollYProgress, pathLength, viewBoxWidth, viewBoxHeight]);
@@ -163,27 +186,29 @@ export default function ProcessTimeline() {
             preserveAspectRatio="none"
             className="absolute w-full h-full"
           >
+            {/* مسار الخلفية المتقطع */}
             <path
               d={activePath}
               stroke="#ef4444"
               strokeWidth="4"
-              strokeDasharray="10,10"
+              strokeDasharray="20,10"
               fill="none"
             />
 
-            <motion.path
+            {/* مرجع للمسار لا يُرسم */}
+            <path
               ref={pathRef}
               d={activePath}
-              stroke="#00a2ff"
-              strokeWidth="5"
               fill="none"
-              strokeLinecap="round"
-              style={{
-                pathLength: scrollYProgress,
-              }}
+              stroke="none"
+              strokeWidth="0"
             />
+
+            {/* المسار الأزرق المتقطع */}
+            {dashSegments}
           </svg>
 
+          {/* الصاروخ */}
           <motion.div
             className="absolute z-20 will-change-transform"
             style={{
@@ -204,6 +229,7 @@ export default function ProcessTimeline() {
             />
           </motion.div>
 
+          {/* النقاط النصية */}
           <div className="absolute top-0 left-0 w-full h-full">
             {steps.map((step, index) => (
               <div
@@ -215,9 +241,9 @@ export default function ProcessTimeline() {
               >
                 <div className="relative z-10">
                   <div
-                    className={` ${
+                    className={`${
                       isMobile ? "w-5 h-5 text-[12px]" : "w-8 h-8 text-lg"
-                    }   rounded-full flex items-center justify-center text-white font-bold transition-colors duration-300 ${
+                    } rounded-full flex items-center justify-center text-white font-bold transition-colors duration-300 ${
                       currentStepIndex !== -1 && currentStepIndex >= index
                         ? "bg-[#00a2ff]"
                         : "bg-[#ff0032]"
@@ -227,7 +253,7 @@ export default function ProcessTimeline() {
                   </div>
                 </div>
                 <div
-                  className={`text-xs md:text-sm mt-2  ${
+                  className={`text-xs md:text-sm mt-2 ${
                     isMobile ? "w-32" : "w-24"
                   } md:w-28 text-white transition-opacity duration-300 ${
                     currentStepIndex !== -1 && currentStepIndex >= index
